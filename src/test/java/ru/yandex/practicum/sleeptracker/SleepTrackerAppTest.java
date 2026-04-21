@@ -1,6 +1,17 @@
 package ru.yandex.practicum.sleeptracker;
 
 import org.junit.jupiter.api.Test;
+import ru.yandex.practicum.sleeptracker.analysis.AverageDurationAnalysis;
+import ru.yandex.practicum.sleeptracker.analysis.BadQualityCountAnalysis;
+import ru.yandex.practicum.sleeptracker.analysis.ChronotypeAnalysis;
+import ru.yandex.practicum.sleeptracker.analysis.MaxDurationAnalysis;
+import ru.yandex.practicum.sleeptracker.analysis.MinDurationAnalysis;
+import ru.yandex.practicum.sleeptracker.analysis.SessionCountAnalysis;
+import ru.yandex.practicum.sleeptracker.analysis.SleeplessNightsAnalysis;
+import ru.yandex.practicum.sleeptracker.enums.Chronotype;
+import ru.yandex.practicum.sleeptracker.enums.SleepQuality;
+import ru.yandex.practicum.sleeptracker.model.SleepingSession;
+import ru.yandex.practicum.sleeptracker.parser.SleepSessionParser;
 
 import java.time.LocalDateTime;
 import java.util.List;
@@ -11,281 +22,196 @@ public class SleepTrackerAppTest {
 
     @Test
     void shouldParseSessionCorrectly() {
-        SleepTrackerApp.SleepingSession session =
-                SleepTrackerApp.parseSession("01.10.25 23:15;02.10.25 07:30;GOOD");
+        SleepingSession session =
+                SleepSessionParser.parse("01.10.25 23:15;02.10.25 07:30;GOOD");
 
         assertEquals(LocalDateTime.of(2025, 10, 1, 23, 15), session.getStart());
         assertEquals(LocalDateTime.of(2025, 10, 2, 7, 30), session.getEnd());
-        assertEquals(SleepTrackerApp.SleepQuality.GOOD, session.getQuality());
+        assertEquals(SleepQuality.GOOD, session.getQuality());
     }
 
     @Test
     void shouldCountSessions() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 23, 50),
-                        LocalDateTime.of(2025, 10, 3, 6, 40),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),
+                session(2025, 10, 2, 23, 50, 2025, 10, 3, 6, 40, SleepQuality.NORMAL)
         );
 
-        SleepTrackerApp.SessionCountAnalysis analysis = new SleepTrackerApp.SessionCountAnalysis();
+        long result = new SessionCountAnalysis().analyze(sessions).value();
 
-        assertEquals(2L, analysis.apply(sessions).value());
+        assertEquals(2L, result);
     }
 
     @Test
     void shouldReturnMinimumDuration() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 3, 14, 10),
-                        LocalDateTime.of(2025, 10, 3, 15, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),   // 495
+                session(2025, 10, 2, 13, 0, 2025, 10, 2, 13, 45, SleepQuality.NORMAL), // 45
+                session(2025, 10, 2, 23, 50, 2025, 10, 3, 6, 40, SleepQuality.NORMAL)  // 410
         );
 
-        SleepTrackerApp.MinDurationAnalysis analysis = new SleepTrackerApp.MinDurationAnalysis();
+        long result = new MinDurationAnalysis().analyze(sessions).value();
 
-        assertEquals(50L, analysis.apply(sessions).value());
+        assertEquals(45L, result);
     }
 
     @Test
     void shouldReturnMaximumDuration() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 3, 14, 10),
-                        LocalDateTime.of(2025, 10, 3, 15, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),   // 495
+                session(2025, 10, 2, 13, 0, 2025, 10, 2, 13, 45, SleepQuality.NORMAL), // 45
+                session(2025, 10, 2, 23, 40, 2025, 10, 3, 8, 0, SleepQuality.BAD)      // 500
         );
 
-        SleepTrackerApp.MaxDurationAnalysis analysis = new SleepTrackerApp.MaxDurationAnalysis();
+        long result = new MaxDurationAnalysis().analyze(sessions).value();
 
-        assertEquals(495L, analysis.apply(sessions).value());
+        assertEquals(500L, result);
     }
 
     @Test
     void shouldReturnAverageDuration() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 3, 14, 10),
-                        LocalDateTime.of(2025, 10, 3, 15, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),   // 495
+                session(2025, 10, 2, 13, 0, 2025, 10, 2, 13, 45, SleepQuality.NORMAL), // 45
+                session(2025, 10, 2, 23, 50, 2025, 10, 3, 6, 40, SleepQuality.NORMAL)  // 410
         );
 
-        SleepTrackerApp.AverageDurationAnalysis analysis = new SleepTrackerApp.AverageDurationAnalysis();
+        double result = new AverageDurationAnalysis().analyze(sessions).value();
 
-        assertEquals(272.5, analysis.apply(sessions).value());
+        assertEquals((495.0 + 45.0 + 410.0) / 3.0, result);
     }
 
     @Test
     void shouldCountBadQualitySessions() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.BAD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 23, 50),
-                        LocalDateTime.of(2025, 10, 3, 6, 40),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 3, 23, 40),
-                        LocalDateTime.of(2025, 10, 4, 8, 0),
-                        SleepTrackerApp.SleepQuality.BAD
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),
+                session(2025, 10, 2, 23, 40, 2025, 10, 3, 8, 0, SleepQuality.BAD),
+                session(2025, 10, 3, 23, 50, 2025, 10, 4, 6, 40, SleepQuality.BAD)
         );
 
-        SleepTrackerApp.BadQualityCountAnalysis analysis = new SleepTrackerApp.BadQualityCountAnalysis();
+        long result = new BadQualityCountAnalysis().analyze(sessions).value();
 
-        assertEquals(2L, analysis.apply(sessions).value());
+        assertEquals(2L, result);
     }
 
     @Test
     void shouldReturnZeroSleeplessNightsWhenEachNightHasSleep() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 23, 50),
-                        LocalDateTime.of(2025, 10, 3, 6, 40),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),
+                session(2025, 10, 2, 23, 50, 2025, 10, 3, 6, 40, SleepQuality.NORMAL),
+                session(2025, 10, 3, 23, 40, 2025, 10, 4, 8, 0, SleepQuality.BAD)
         );
 
-        SleepTrackerApp.SleeplessNightsAnalysis analysis = new SleepTrackerApp.SleeplessNightsAnalysis();
+        long result = new SleeplessNightsAnalysis().analyze(sessions).value();
 
-        assertEquals(0L, analysis.apply(sessions).value());
+        assertEquals(0L, result);
     }
 
     @Test
     void shouldCountOneSleeplessNight() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 15),
-                        LocalDateTime.of(2025, 10, 2, 7, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 3, 7, 0),
-                        LocalDateTime.of(2025, 10, 3, 11, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 15, 2025, 10, 2, 7, 30, SleepQuality.GOOD),
+                session(2025, 10, 3, 23, 40, 2025, 10, 4, 8, 0, SleepQuality.BAD)
         );
 
-        SleepTrackerApp.SleeplessNightsAnalysis analysis = new SleepTrackerApp.SleeplessNightsAnalysis();
+        long result = new SleeplessNightsAnalysis().analyze(sessions).value();
 
-        assertEquals(1L, analysis.apply(sessions).value());
+        assertEquals(1L, result);
     }
 
     @Test
     void shouldNotTreatNightSleepAsSleepless() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 2, 0),
-                        LocalDateTime.of(2025, 10, 2, 5, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 0, 2025, 10, 2, 3, 0, SleepQuality.GOOD)
         );
 
-        SleepTrackerApp.SleeplessNightsAnalysis analysis = new SleepTrackerApp.SleeplessNightsAnalysis();
+        long result = new SleeplessNightsAnalysis().analyze(sessions).value();
 
-        assertEquals(0L, analysis.apply(sessions).value());
+        assertEquals(0L, result);
     }
 
     @Test
     void shouldTreatDaySleepAsSleeplessNight() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 7, 0),
-                        LocalDateTime.of(2025, 10, 2, 11, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 2, 7, 0, 2025, 10, 2, 11, 0, SleepQuality.NORMAL)
         );
 
-        SleepTrackerApp.SleeplessNightsAnalysis analysis = new SleepTrackerApp.SleeplessNightsAnalysis();
+        long result = new SleeplessNightsAnalysis().analyze(sessions).value();
 
-        assertEquals(1L, analysis.apply(sessions).value());
+        assertEquals(1L, result);
     }
 
     @Test
     void shouldTreatSleepStartingAfterNoonAsNextNightCandidate() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 5, 23, 30),
-                        LocalDateTime.of(2025, 10, 6, 7, 0),
-                        SleepTrackerApp.SleepQuality.GOOD
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 17, 0, 2025, 10, 1, 23, 0, SleepQuality.NORMAL)
         );
 
-        SleepTrackerApp.SleeplessNightsAnalysis analysis = new SleepTrackerApp.SleeplessNightsAnalysis();
+        long result = new SleeplessNightsAnalysis().analyze(sessions).value();
 
-        assertEquals(0L, analysis.apply(sessions).value());
+        assertEquals(1L, result);
     }
 
     @Test
     void shouldDetectOwlChronotype() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 23, 30),
-                        LocalDateTime.of(2025, 10, 2, 9, 30),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 23, 40),
-                        LocalDateTime.of(2025, 10, 3, 9, 45),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 50, 2025, 10, 2, 10, 10, SleepQuality.GOOD),
+                session(2025, 10, 2, 23, 40, 2025, 10, 3, 9, 30, SleepQuality.NORMAL),
+                session(2025, 10, 3, 23, 45, 2025, 10, 4, 9, 20, SleepQuality.NORMAL)
         );
 
-        SleepTrackerApp.ChronotypeAnalysis analysis = new SleepTrackerApp.ChronotypeAnalysis();
+        Chronotype result = new ChronotypeAnalysis().analyze(sessions).value();
 
-        assertEquals(SleepTrackerApp.Chronotype.OWL, analysis.apply(sessions).value());
+        assertEquals(Chronotype.OWL, result);
     }
 
     @Test
     void shouldDetectLarkChronotype() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 21, 15),
-                        LocalDateTime.of(2025, 10, 2, 6, 20),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 21, 30),
-                        LocalDateTime.of(2025, 10, 3, 6, 30),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 21, 30, 2025, 10, 2, 6, 20, SleepQuality.GOOD),
+                session(2025, 10, 2, 21, 40, 2025, 10, 3, 6, 10, SleepQuality.NORMAL),
+                session(2025, 10, 3, 21, 50, 2025, 10, 4, 6, 30, SleepQuality.NORMAL)
         );
 
-        SleepTrackerApp.ChronotypeAnalysis analysis = new SleepTrackerApp.ChronotypeAnalysis();
+        Chronotype result = new ChronotypeAnalysis().analyze(sessions).value();
 
-        assertEquals(SleepTrackerApp.Chronotype.LARK, analysis.apply(sessions).value());
+        assertEquals(Chronotype.LARK, result);
     }
 
     @Test
     void shouldReturnDoveWhenTypesAreMixed() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 22, 30),
-                        LocalDateTime.of(2025, 10, 2, 8, 0),
-                        SleepTrackerApp.SleepQuality.GOOD
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 2, 23, 30),
-                        LocalDateTime.of(2025, 10, 3, 8, 30),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 23, 50, 2025, 10, 2, 10, 10, SleepQuality.GOOD),   // owl
+                session(2025, 10, 2, 21, 30, 2025, 10, 3, 6, 20, SleepQuality.NORMAL)   // lark
         );
 
-        SleepTrackerApp.ChronotypeAnalysis analysis = new SleepTrackerApp.ChronotypeAnalysis();
+        Chronotype result = new ChronotypeAnalysis().analyze(sessions).value();
 
-        assertEquals(SleepTrackerApp.Chronotype.DOVE, analysis.apply(sessions).value());
+        assertEquals(Chronotype.DOVE, result);
     }
 
     @Test
     void shouldIgnoreDaySleepForChronotype() {
-        List<SleepTrackerApp.SleepingSession> sessions = List.of(
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 14, 0),
-                        LocalDateTime.of(2025, 10, 1, 15, 0),
-                        SleepTrackerApp.SleepQuality.NORMAL
-                ),
-                new SleepTrackerApp.SleepingSession(
-                        LocalDateTime.of(2025, 10, 1, 21, 15),
-                        LocalDateTime.of(2025, 10, 2, 6, 20),
-                        SleepTrackerApp.SleepQuality.GOOD
-                )
+        List<SleepingSession> sessions = List.of(
+                session(2025, 10, 1, 13, 0, 2025, 10, 1, 14, 0, SleepQuality.NORMAL),   // day sleep
+                session(2025, 10, 1, 23, 50, 2025, 10, 2, 10, 10, SleepQuality.GOOD),
+                session(2025, 10, 2, 23, 40, 2025, 10, 3, 9, 30, SleepQuality.NORMAL)
         );
 
-        SleepTrackerApp.ChronotypeAnalysis analysis = new SleepTrackerApp.ChronotypeAnalysis();
+        Chronotype result = new ChronotypeAnalysis().analyze(sessions).value();
 
-        assertEquals(SleepTrackerApp.Chronotype.LARK, analysis.apply(sessions).value());
+        assertEquals(Chronotype.OWL, result);
+    }
+
+    private SleepingSession session(
+            int startYear, int startMonth, int startDay, int startHour, int startMinute,
+            int endYear, int endMonth, int endDay, int endHour, int endMinute,
+            SleepQuality quality
+    ) {
+        return new SleepingSession(
+                LocalDateTime.of(startYear, startMonth, startDay, startHour, startMinute),
+                LocalDateTime.of(endYear, endMonth, endDay, endHour, endMinute),
+                quality
+        );
     }
 }
